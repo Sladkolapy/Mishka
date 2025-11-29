@@ -608,12 +608,21 @@ async def send_message(
     generated_file_id = None
     generated_file_name = None
     
-    if '```json' in ai_response and '"action": "create_excel"' in ai_response:
+    # Try to detect JSON in response - either in code block or raw
+    json_str = None
+    if '```json' in ai_response and '"action"' in ai_response:
         try:
-            # Extract JSON from response
             json_start = ai_response.find('```json') + 7
             json_end = ai_response.find('```', json_start)
             json_str = ai_response[json_start:json_end].strip()
+        except:
+            pass
+    elif ai_response.strip().startswith('{') and '"action"' in ai_response:
+        # Raw JSON response
+        json_str = ai_response.strip()
+    
+    if json_str:
+        try:
             action_data = json.loads(json_str)
             
             if action_data.get('action') == 'create_excel':
