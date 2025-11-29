@@ -216,17 +216,29 @@ const ChatPage = () => {
         responseType: "blob",
       });
 
-      const url = window.URL.createObjectURL(new Blob([response.data]));
+      // Create blob URL and trigger download
+      const blob = new Blob([response.data]);
+      const url = window.URL.createObjectURL(blob);
+      
+      // Create invisible link and click it
       const link = document.createElement("a");
+      link.style.display = "none";
       link.href = url;
-      link.setAttribute("download", filename);
+      link.download = filename || "download";
+      
       document.body.appendChild(link);
       link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
+      
+      // Cleanup after small delay
+      setTimeout(() => {
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      }, 100);
+      
       toast.success("Файл скачивается...");
     } catch (error) {
-      toast.error("Ошибка скачивания");
+      console.error("Download error:", error);
+      toast.error("Ошибка скачивания. Попробуйте ещё раз.");
     }
   };
 
