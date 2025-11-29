@@ -573,7 +573,7 @@ PowerPoint: ```json\n{"action": "create_pptx", "is_edit": false, "use_template":
 """ + file_context
     try:
         chat_session = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=f"chat_{chat_id}_{uuid.uuid4()}", system_message=system_message).with_model("openai", "gpt-4o")
-        conversation = "\n".join([f"{"Пользователь" if m['role']=='user' else "Ассистент"}: {m['content']}" for m in messages[-10:]])
+        conversation = "\n".join([("041f043e043b044c0437043e0432043004420435043b044c" if m["role"]=="user" else "0410044104410438044104420435043d0442") + ": " + m["content"] for m in messages[-10:]])
         conversation += f"\nПользователь: {message_data.content}"
         ai_response = await chat_session.send_message(UserMessage(text=conversation))
     except Exception as e:
