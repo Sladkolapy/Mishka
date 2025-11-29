@@ -992,9 +992,15 @@ async def send_message(
 
 @api_router.get("/files/{file_id}/download")
 async def download_file(file_id: str, user = Depends(get_current_user)):
-    file_record = await db.files.find_one({'id': file_id, 'user_id': user['id']})
+    # First find the file
+    file_record = await db.files.find_one({'id': file_id})
     if not file_record:
         raise HTTPException(status_code=404, detail='Файл не найден')
+    
+    # Verify user owns the chat that contains this file
+    chat = await db.chats.find_one({'id': file_record['chat_id'], 'user_id': user['id']})
+    if not chat:
+        raise HTTPException(status_code=403, detail='Нет доступа к файлу')
     
     if not os.path.exists(file_record['file_path']):
         raise HTTPException(status_code=404, detail='Файл не найден на диске')
