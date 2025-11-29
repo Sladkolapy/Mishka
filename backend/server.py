@@ -991,24 +991,58 @@ async def send_message(
 # ==================== FILE DOWNLOAD ====================
 
 @api_router.get("/files/{file_id}/download")
-async def download_file(file_id: str, user = Depends(get_current_user)):
-    # First find the file
+async def download_file(
+    file_id: str, 
+    token: Optional[str] = None,
+    user = Depends(security)
+):
+    # Получаем токен из query параметра или из заголовка
+    auth_token = token
+    if not auth_token and user:
+        auth_token = user.credentials
+    
+    if not auth_token:
+        raise HTTPException(status_code=401, detail='Требуется авторизация')
+    
+    # Декодируем токен
+    try:
+        payload = jwt.decode(auth_token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        user_id = payload.get('user_id')
+    except:
+        raise HTTPException(status_code=401, detail='Неверный токен')
+    
+    # Находим файл
     file_record = await db.files.find_one({'id': file_id})
     if not file_record:
         raise HTTPException(status_code=404, detail='Файл не найден')
     
-    # Verify user owns the chat that contains this file
-    chat = await db.chats.find_one({'id': file_record['chat_id'], 'user_id': user['id']})
+    # Проверяем что пользователь владеет чатом
+    chat = await db.chats.find_one({'id': file_record['chat_id'], 'user_id': user_id})
     if not chat:
         raise HTTPException(status_code=403, detail='Нет доступа к файлу')
     
     if not os.path.exists(file_record['file_path']):
         raise HTTPException(status_code=404, detail='Файл не найден на диске')
     
+    # Определяем MIME тип
+    mime_types = {
+        'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'xls': 'application/vnd.ms-excel',
+        'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        'pdf': 'application/pdf',
+        'txt': 'text/plain',
+    }
+    file_ext = file_record['filename'].split('.')[-1].lower()
+    media_type = mime_types.get(file_ext, 'application/octet-stream')
+    
     return FileResponse(
         path=file_record['file_path'],
         filename=file_record['filename'],
-        media_type='application/octet-stream'
+        media_type=media_type,
+        headers={
+            'Content-Disposition': f'attachment; filename="{file_record["filename"]}"'
+        }
     )
 
 # ==================== TOKEN COSTS INFO ====================
