@@ -993,21 +993,18 @@ async def send_message(
 @api_router.get("/files/{file_id}/download")
 async def download_file(
     file_id: str, 
-    token: Optional[str] = None,
-    user = Depends(security)
+    token: Optional[str] = None
 ):
-    # Получаем токен из query параметра или из заголовка
-    auth_token = token
-    if not auth_token and user:
-        auth_token = user.credentials
-    
-    if not auth_token:
+    # Получаем токен из query параметра
+    if not token:
         raise HTTPException(status_code=401, detail='Требуется авторизация')
     
     # Декодируем токен
     try:
-        payload = jwt.decode(auth_token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
         user_id = payload.get('user_id')
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail='Токен истёк')
     except:
         raise HTTPException(status_code=401, detail='Неверный токен')
     
