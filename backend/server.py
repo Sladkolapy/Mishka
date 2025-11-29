@@ -588,7 +588,7 @@ async def send_message(
             api_key=EMERGENT_LLM_KEY,
             session_id=f"chat_{chat_id}_{uuid.uuid4()}",
             system_message=system_message
-        ).with_model("openai", "gpt-5")
+        ).with_model("openai", "gpt-4o")
         
         # Build conversation history
         conversation = ""
