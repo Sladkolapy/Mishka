@@ -646,10 +646,15 @@ async def send_message(
                 await db.files.insert_one(file_record)
                 generated_file_name = file_record['filename']
                 
-                # Remove JSON from response
-                ai_response = ai_response[:ai_response.find('```json')] + f"\n\nЯ создал файл '{generated_file_name}'. Вы можете скачать его ниже."
+                # Replace JSON with friendly message
+                if '```json' in ai_response:
+                    ai_response = ai_response[:ai_response.find('```json')] + f"\n\nЯ создал файл '{generated_file_name}'. Вы можете скачать его ниже."
+                else:
+                    ai_response = f"Я создал файл '{generated_file_name}' с графиком работы. Вы можете скачать его ниже."
         except Exception as e:
             logger.error(f"Error creating Excel: {e}")
+    elif json_str:
+        pass  # JSON was found but not valid action
     
     # Save AI response
     ai_msg_id = str(uuid.uuid4())
