@@ -1033,12 +1033,16 @@ async def download_file(
     file_ext = file_record['filename'].split('.')[-1].lower()
     media_type = mime_types.get(file_ext, 'application/octet-stream')
     
+    # Encode filename for Content-Disposition header (handle cyrillic)
+    from urllib.parse import quote
+    encoded_filename = quote(file_record['filename'])
+    
     return FileResponse(
         path=file_record['file_path'],
         filename=file_record['filename'],
         media_type=media_type,
         headers={
-            'Content-Disposition': f'attachment; filename="{file_record["filename"]}"'
+            'Content-Disposition': f"attachment; filename*=UTF-8''{encoded_filename}"
         }
     )
 
