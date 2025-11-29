@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { API } from "@/App";
+import { API, useAuth } from "@/App";
 import axios from "axios";
 import { toast } from "sonner";
 import {
@@ -10,18 +10,19 @@ import {
   Download,
   FileText,
   FileSpreadsheet,
-  FileImage,
+  Presentation,
   File,
-  X,
   Loader2,
   Sparkles,
+  Coins,
+  AlertCircle,
 } from "lucide-react";
 import { format } from "date-fns";
-import { ScrollArea } from "@/components/ui/scroll-area";
 
-const ChatPage = ({ user, token, onLogout }) => {
+const ChatPage = () => {
   const { chatId } = useParams();
   const navigate = useNavigate();
+  const { user, token, refreshUser } = useAuth();
   const [chat, setChat] = useState(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
@@ -50,7 +51,7 @@ const ChatPage = ({ user, token, onLogout }) => {
       });
       setChat(response.data);
     } catch (error) {
-      toast.error("Failed to load chat");
+      toast.error("Ошибка загрузки чата");
       navigate("/");
     } finally {
       setLoading(false);
@@ -61,11 +62,16 @@ const ChatPage = ({ user, token, onLogout }) => {
     e.preventDefault();
     if (!message.trim() || sending) return;
 
+    if (user?.balance < 5) {
+      toast.error("Недостаточно токенов. Пополните баланс.");
+      navigate("/balance");
+      return;
+    }
+
     const userMessage = message.trim();
     setMessage("");
     setSending(true);
 
-    // Optimistically add user message
     const tempUserMsg = {
       id: `temp-${Date.now()}`,
       role: "user",
@@ -84,7 +90,6 @@ const ChatPage = ({ user, token, onLogout }) => {
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      // Update with actual messages
       setChat((prev) => ({
         ...prev,
         messages: [
@@ -93,9 +98,32 @@ const ChatPage = ({ user, token, onLogout }) => {
           response.data,
         ],
       }));
+
+      // Refresh user to update balance
+      await refreshUser();
+
+      // If file was generated, add to files list
+      if (response.data.file_id) {
+        setChat((prev) => ({
+          ...prev,
+          files: [
+            {
+              id: response.data.file_id,
+              filename: response.data.file_name,
+              file_type: response.data.file_name?.split(".").pop() || "xlsx",
+              is_generated: true,
+              created_at: new Date().toISOString(),
+            },
+            ...prev.files,
+          ],
+        }));
+      }
     } catch (error) {
-      toast.error("Failed to send message");
-      // Remove optimistic message
+      const errMsg = error.response?.data?.detail || "Ошибка отправки";
+      toast.error(errMsg);
+      if (error.response?.status === 402) {
+        navigate("/balance");
+      }
       setChat((prev) => ({
         ...prev,
         messages: prev.messages.filter((m) => !m.id.startsWith("temp-")),
@@ -109,19 +137,11 @@ const ChatPage = ({ user, token, onLogout }) => {
     if (!files || files.length === 0) return;
 
     const file = files[0];
-    const allowedTypes = [
-      "xlsx",
-      "xls",
-      "docx",
-      "pptx",
-      "pdf",
-      "txt",
-      "rtf",
-    ];
+    const allowedTypes = ["xlsx", "xls", "docx", "pptx", "pdf", "txt", "rtf"];
     const fileExt = file.name.split(".").pop().toLowerCase();
 
     if (!allowedTypes.includes(fileExt)) {
-      toast.error(`File type not supported. Allowed: ${allowedTypes.join(", ")}`);
+      toast.error(`Формат не поддерживается. Разрешены: ${allowedTypes.join(", ")}`);
       return;
     }
 
@@ -141,11 +161,10 @@ const ChatPage = ({ user, token, onLogout }) => {
         }
       );
 
-      // Add upload message
       const uploadMsg = {
         id: response.data.message_id,
         role: "user",
-        content: `Uploaded file: ${file.name}`,
+        content: `Загружен файл: ${file.name}`,
         file_id: response.data.file_id,
         file_name: file.name,
         created_at: new Date().toISOString(),
@@ -155,7 +174,6 @@ const ChatPage = ({ user, token, onLogout }) => {
         ...prev,
         messages: [...prev.messages, uploadMsg],
         files: [
-          ...prev.files,
           {
             id: response.data.file_id,
             filename: file.name,
@@ -163,13 +181,13 @@ const ChatPage = ({ user, token, onLogout }) => {
             is_generated: false,
             created_at: new Date().toISOString(),
           },
+          ...prev.files,
         ],
       }));
 
-      toast.success("File uploaded successfully!");
+      toast.success("Файл загружен!");
     } catch (error) {
-      const errMsg = error.response?.data?.detail || "Failed to upload file";
-      toast.error(errMsg);
+      toast.error(error.response?.data?.detail || "Ошибка загрузки");
     } finally {
       setUploading(false);
     }
@@ -206,8 +224,9 @@ const ChatPage = ({ user, token, onLogout }) => {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
+      toast.success("Файл скачивается...");
     } catch (error) {
-      toast.error("Failed to download file");
+      toast.error("Ошибка скачивания");
     }
   };
 
@@ -216,15 +235,15 @@ const ChatPage = ({ user, token, onLogout }) => {
       case "xlsx":
       case "xls":
         return <FileSpreadsheet className="w-4 h-4" />;
+      case "pptx":
+      case "ppt":
+        return <Presentation className="w-4 h-4" />;
       case "docx":
       case "doc":
       case "pdf":
       case "txt":
       case "rtf":
         return <FileText className="w-4 h-4" />;
-      case "pptx":
-      case "ppt":
-        return <FileImage className="w-4 h-4" />;
       default:
         return <File className="w-4 h-4" />;
     }
@@ -261,9 +280,19 @@ const ChatPage = ({ user, token, onLogout }) => {
               {chat?.title}
             </h1>
             <p className="text-xs text-slate-400">
-              {chat?.files?.length || 0} files uploaded
+              {chat?.files?.length || 0} файлов
             </p>
           </div>
+
+          {/* Balance indicator */}
+          <button
+            onClick={() => navigate("/balance")}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-violet-500/10 border border-violet-500/20 text-violet-400 hover:bg-violet-500/20 transition-all"
+            data-testid="chat-balance-btn"
+          >
+            <Coins className="w-4 h-4" />
+            <span className="text-sm font-medium">{user?.balance || 0}</span>
+          </button>
         </div>
       </header>
 
@@ -272,8 +301,20 @@ const ChatPage = ({ user, token, onLogout }) => {
         <div className="fixed inset-0 z-40 bg-violet-500/20 backdrop-blur-sm flex items-center justify-center">
           <div className="upload-zone dragging p-12">
             <Paperclip className="w-12 h-12 text-violet-400 mx-auto mb-4" />
-            <p className="text-xl text-white font-medium">Drop file here</p>
+            <p className="text-xl text-white font-medium">Перетащите файл сюда</p>
             <p className="text-slate-400">Excel, Word, PowerPoint, PDF, TXT</p>
+          </div>
+        </div>
+      )}
+
+      {/* Low balance warning */}
+      {user?.balance < 10 && (
+        <div className="mx-4 sm:mx-6 mt-2">
+          <div className="max-w-4xl mx-auto p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center gap-3">
+            <AlertCircle className="w-5 h-5 text-amber-400 flex-shrink-0" />
+            <p className="text-amber-300 text-sm">
+              Мало токенов ({user?.balance}). <button onClick={() => navigate("/balance")} className="underline hover:no-underline">Пополнить баланс</button>
+            </p>
           </div>
         </div>
       )}
@@ -287,11 +328,11 @@ const ChatPage = ({ user, token, onLogout }) => {
                 <Sparkles className="w-10 h-10 text-violet-400" />
               </div>
               <h2 className="text-xl font-semibold text-white mb-2">
-                Start by uploading a file
+                Загрузите файл для начала
               </h2>
               <p className="text-slate-400 mb-6 max-w-md mx-auto">
-                Upload an Excel template, Word document, or other files. 
-                Then ask me to analyze, modify, or create new documents based on your needs.
+                Загрузите шаблон презентации, Excel или другой документ. 
+                Можете также загрузить PDF с данными для заполнения.
               </p>
               <button
                 onClick={() => fileInputRef.current?.click()}
@@ -299,7 +340,7 @@ const ChatPage = ({ user, token, onLogout }) => {
                 data-testid="upload-first-file-btn"
               >
                 <Paperclip className="w-5 h-5" />
-                Upload file
+                Загрузить файл
               </button>
             </div>
           ) : (
@@ -312,7 +353,6 @@ const ChatPage = ({ user, token, onLogout }) => {
                 <div
                   className={msg.role === "user" ? "message-user" : "message-assistant"}
                 >
-                  {/* File attachment */}
                   {msg.file_id && (
                     <button
                       onClick={() => downloadFile(msg.file_id, msg.file_name)}
@@ -325,24 +365,29 @@ const ChatPage = ({ user, token, onLogout }) => {
                     </button>
                   )}
 
-                  {/* Message content */}
                   <p className="text-white whitespace-pre-wrap">{msg.content}</p>
 
-                  {/* Timestamp */}
-                  <p className="text-xs text-slate-400 mt-2">
-                    {format(new Date(msg.created_at), "HH:mm")}
-                  </p>
+                  <div className="flex items-center gap-2 mt-2">
+                    <span className="text-xs text-slate-400">
+                      {format(new Date(msg.created_at), "HH:mm")}
+                    </span>
+                    {msg.tokens_used && (
+                      <span className="text-xs text-violet-400 flex items-center gap-1">
+                        <Coins className="w-3 h-3" />
+                        -{msg.tokens_used}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
             ))
           )}
 
-          {/* Sending indicator */}
           {sending && (
             <div className="message-assistant animate-pulse-slow">
               <div className="flex items-center gap-2 text-slate-400">
                 <Loader2 className="w-4 h-4 animate-spin" />
-                <span>AI is thinking...</span>
+                <span>ИИ думает...</span>
               </div>
             </div>
           )}
@@ -354,7 +399,6 @@ const ChatPage = ({ user, token, onLogout }) => {
       {/* Input area */}
       <div className="sticky bottom-0 px-4 sm:px-6 py-4 bg-gradient-to-t from-slate-950 via-slate-950/95 to-transparent">
         <div className="max-w-4xl mx-auto">
-          {/* Files bar */}
           {chat?.files?.length > 0 && (
             <div className="flex gap-2 mb-3 overflow-x-auto pb-2">
               {chat.files.slice(0, 5).map((file) => (
@@ -375,13 +419,12 @@ const ChatPage = ({ user, token, onLogout }) => {
               ))}
               {chat.files.length > 5 && (
                 <span className="file-badge">
-                  +{chat.files.length - 5} more
+                  +{chat.files.length - 5} ещё
                 </span>
               )}
             </div>
           )}
 
-          {/* Input form */}
           <form onSubmit={sendMessage} className="flex gap-3">
             <input
               type="file"
@@ -410,7 +453,7 @@ const ChatPage = ({ user, token, onLogout }) => {
               type="text"
               value={message}
               onChange={(e) => setMessage(e.target.value)}
-              placeholder="Ask about your documents or request changes..."
+              placeholder="Опишите что нужно сделать с документами..."
               className="input-field flex-1"
               disabled={sending}
               data-testid="message-input"
@@ -430,9 +473,9 @@ const ChatPage = ({ user, token, onLogout }) => {
             </button>
           </form>
 
-          {/* Supported formats hint */}
           <p className="text-xs text-slate-500 text-center mt-3">
-            Supported: Excel (.xlsx, .xls), Word (.docx), PowerPoint (.pptx), PDF, TXT
+            Поддерживаются: Excel, Word, PowerPoint, PDF, TXT | 
+            <span className="text-violet-400"> Ваш баланс: {user?.balance || 0} токенов</span>
           </p>
         </div>
       </div>
