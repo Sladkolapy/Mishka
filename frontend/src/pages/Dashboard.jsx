@@ -12,8 +12,8 @@ import {
   Clock,
   ChevronRight,
   Search,
-  Wallet,
   Coins,
+  Shield,
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -93,6 +93,18 @@ const Dashboard = () => {
           </div>
 
           <div className="flex items-center gap-3">
+            {/* Admin button */}
+            {user?.is_admin && (
+              <button
+                onClick={() => navigate("/admin")}
+                className="flex items-center gap-2 px-3 py-2 rounded-xl bg-violet-500/20 border border-violet-500/30 text-violet-400 hover:bg-violet-500/30 transition-all"
+                data-testid="admin-btn"
+              >
+                <Shield className="w-4 h-4" />
+                <span className="hidden sm:inline">Админ</span>
+              </button>
+            )}
+
             {/* Balance button */}
             <button
               onClick={() => navigate("/balance")}
@@ -100,7 +112,7 @@ const Dashboard = () => {
               data-testid="balance-btn"
             >
               <Coins className="w-4 h-4" />
-              <span className="font-medium">{user?.balance || 0}</span>
+              <span className="font-medium">{user?.is_admin ? "∞" : user?.balance || 0}</span>
             </button>
 
             <button

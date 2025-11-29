@@ -2,16 +2,25 @@ import { useState } from "react";
 import { API } from "@/App";
 import axios from "axios";
 import { toast } from "sonner";
-import { Mail, Lock, User, ArrowRight, FileText, Sparkles } from "lucide-react";
+import { Mail, Lock, ArrowRight, FileText, Sparkles, CheckCircle } from "lucide-react";
 
 const AuthPage = ({ onLogin }) => {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [agreeTerms, setAgreeTerms] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [showTerms, setShowTerms] = useState(null); // 'privacy' or 'terms'
+  const [legalContent, setLegalContent] = useState(null);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    if (!isLogin && !agreeTerms) {
+      toast.error("Необходимо согласиться с условиями");
+      return;
+    }
+    
     setLoading(true);
 
     try {
@@ -19,17 +28,57 @@ const AuthPage = ({ onLogin }) => {
       const response = await axios.post(`${API}${endpoint}`, {
         email,
         password,
+        agree_terms: agreeTerms,
       });
 
       onLogin(response.data.access_token, response.data.user);
-      toast.success(isLogin ? "Welcome back!" : "Account created successfully!");
+      toast.success(isLogin ? "С возвращением!" : "Аккаунт создан! Вам начислено 300 бесплатных токенов.");
     } catch (error) {
-      const message = error.response?.data?.detail || "An error occurred";
+      const message = error.response?.data?.detail || "Произошла ошибка";
       toast.error(message);
     } finally {
       setLoading(false);
     }
   };
+
+  const openLegal = async (type) => {
+    try {
+      const response = await axios.get(`${API}/legal/${type}`);
+      setLegalContent(response.data);
+      setShowTerms(type);
+    } catch (error) {
+      toast.error("Ошибка загрузки документа");
+    }
+  };
+
+  if (showTerms && legalContent) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-violet-950 to-slate-950 flex items-center justify-center p-6">
+        <div className="max-w-2xl w-full card max-h-[80vh] overflow-hidden flex flex-col">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-bold text-white">{legalContent.title}</h2>
+            <button
+              onClick={() => setShowTerms(null)}
+              className="text-slate-400 hover:text-white"
+            >
+              ✕
+            </button>
+          </div>
+          <div className="overflow-y-auto flex-1 pr-2">
+            <pre className="text-slate-300 text-sm whitespace-pre-wrap font-sans">
+              {legalContent.content}
+            </pre>
+          </div>
+          <button
+            onClick={() => setShowTerms(null)}
+            className="btn-primary mt-4"
+          >
+            Закрыть
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-violet-950 to-slate-950 flex">
@@ -48,13 +97,13 @@ const AuthPage = ({ onLogin }) => {
           </div>
           
           <h2 className="text-4xl font-bold text-white mb-6 leading-tight">
-            Work with documents
-            <span className="block text-violet-400">powered by AI</span>
+            Работайте с документами
+            <span className="block text-violet-400">с помощью ИИ</span>
           </h2>
           
           <p className="text-slate-400 text-lg mb-8">
-            Upload Excel templates, Word documents, PowerPoints and more. 
-            Let AI help you create schedules, analyze data, and generate new documents.
+            Загружайте шаблоны презентаций, Excel таблицы, Word документы.
+            ИИ поможет создать новые документы на их основе.
           </p>
           
           <div className="space-y-4">
@@ -62,19 +111,19 @@ const AuthPage = ({ onLogin }) => {
               <div className="w-8 h-8 rounded-lg bg-violet-500/20 flex items-center justify-center">
                 <Sparkles className="w-4 h-4 text-violet-400" />
               </div>
-              <span>AI-powered document analysis</span>
+              <span>Используйте ваши шаблоны презентаций</span>
             </div>
             <div className="flex items-center gap-3 text-slate-300">
               <div className="w-8 h-8 rounded-lg bg-violet-500/20 flex items-center justify-center">
                 <FileText className="w-4 h-4 text-violet-400" />
               </div>
-              <span>Support for Excel, Word, PowerPoint, PDF</span>
+              <span>Поддержка Excel, Word, PowerPoint, PDF</span>
             </div>
             <div className="flex items-center gap-3 text-slate-300">
-              <div className="w-8 h-8 rounded-lg bg-violet-500/20 flex items-center justify-center">
-                <ArrowRight className="w-4 h-4 text-violet-400" />
+              <div className="w-8 h-8 rounded-lg bg-green-500/20 flex items-center justify-center">
+                <CheckCircle className="w-4 h-4 text-green-400" />
               </div>
-              <span>Generate new documents from templates</span>
+              <span>300 бесплатных токенов при регистрации</span>
             </div>
           </div>
         </div>
@@ -93,12 +142,12 @@ const AuthPage = ({ onLogin }) => {
 
           <div className="card">
             <h2 className="text-2xl font-bold text-white mb-2">
-              {isLogin ? "Welcome back" : "Create account"}
+              {isLogin ? "С возвращением!" : "Создать аккаунт"}
             </h2>
             <p className="text-slate-400 mb-6">
               {isLogin
-                ? "Sign in to continue working with your documents"
-                : "Sign up to start working with AI-powered documents"}
+                ? "Войдите чтобы продолжить работу"
+                : "Зарегистрируйтесь и получите 300 бесплатных токенов"}
             </p>
 
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -122,7 +171,7 @@ const AuthPage = ({ onLogin }) => {
 
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Password
+                  Пароль
                 </label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
@@ -139,17 +188,49 @@ const AuthPage = ({ onLogin }) => {
                 </div>
               </div>
 
+              {/* Terms checkbox for registration */}
+              {!isLogin && (
+                <div className="flex items-start gap-3">
+                  <input
+                    type="checkbox"
+                    id="agree-terms"
+                    checked={agreeTerms}
+                    onChange={(e) => setAgreeTerms(e.target.checked)}
+                    className="mt-1 w-4 h-4 rounded border-slate-600 bg-slate-800 text-violet-500 focus:ring-violet-500"
+                    data-testid="agree-terms-checkbox"
+                  />
+                  <label htmlFor="agree-terms" className="text-sm text-slate-400">
+                    Я соглашаюсь с{" "}
+                    <button
+                      type="button"
+                      onClick={() => openLegal('terms')}
+                      className="text-violet-400 hover:underline"
+                    >
+                      Пользовательским соглашением
+                    </button>
+                    {" "}и{" "}
+                    <button
+                      type="button"
+                      onClick={() => openLegal('privacy')}
+                      className="text-violet-400 hover:underline"
+                    >
+                      Политикой конфиденциальности
+                    </button>
+                  </label>
+                </div>
+              )}
+
               <button
                 type="submit"
-                disabled={loading}
-                className="btn-primary w-full flex items-center justify-center gap-2"
+                disabled={loading || (!isLogin && !agreeTerms)}
+                className="btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-50"
                 data-testid="auth-submit-btn"
               >
                 {loading ? (
                   <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-white" />
                 ) : (
                   <>
-                    {isLogin ? "Sign In" : "Create Account"}
+                    {isLogin ? "Войти" : "Создать аккаунт"}
                     <ArrowRight className="w-4 h-4" />
                   </>
                 )}
@@ -163,8 +244,8 @@ const AuthPage = ({ onLogin }) => {
                 data-testid="auth-toggle-btn"
               >
                 {isLogin
-                  ? "Don't have an account? Sign up"
-                  : "Already have an account? Sign in"}
+                  ? "Нет аккаунта? Зарегистрируйтесь"
+                  : "Уже есть аккаунт? Войдите"}
               </button>
             </div>
           </div>

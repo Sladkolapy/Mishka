@@ -3,13 +3,13 @@ import "@/App.css";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import axios from "axios";
 import { Toaster } from "@/components/ui/sonner";
-import { toast } from "sonner";
 
 // Pages
 import AuthPage from "@/pages/AuthPage";
 import Dashboard from "@/pages/Dashboard";
 import ChatPage from "@/pages/ChatPage";
 import BalancePage from "@/pages/BalancePage";
+import AdminPage from "@/pages/AdminPage";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 export const API = `${BACKEND_URL}/api`;
@@ -122,6 +122,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <BalancePage />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/admin" 
+              element={
+                <ProtectedRoute>
+                  <AdminPage />
                 </ProtectedRoute>
               } 
             />
