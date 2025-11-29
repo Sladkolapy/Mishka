@@ -211,34 +211,33 @@ const ChatPage = () => {
 
   const downloadFile = async (fileId, filename) => {
     try {
-      const response = await axios.get(`${API}/files/${fileId}/download`, {
-        headers: { Authorization: `Bearer ${token}` },
-        responseType: "blob",
-      });
-
-      // Create blob URL and trigger download
-      const blob = new Blob([response.data]);
-      const url = window.URL.createObjectURL(blob);
+      // Для Edge и других браузеров - открываем прямую ссылку
+      const downloadUrl = `${API}/files/${fileId}/download?token=${encodeURIComponent(token)}`;
       
-      // Create invisible link and click it
-      const link = document.createElement("a");
-      link.style.display = "none";
-      link.href = url;
-      link.download = filename || "download";
+      // Создаём невидимый iframe для скачивания
+      const iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+      document.body.appendChild(iframe);
       
-      document.body.appendChild(link);
-      link.click();
+      // Или просто открываем в новом окне
+      const newWindow = window.open(downloadUrl, '_blank');
       
-      // Cleanup after small delay
+      // Если окно заблокировано, используем прямой переход
+      if (!newWindow || newWindow.closed) {
+        window.location.href = downloadUrl;
+      }
+      
+      toast.success("Открывается окно скачивания...");
+      
+      // Удаляем iframe через 5 секунд
       setTimeout(() => {
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(url);
-      }, 100);
-      
-      toast.success("Файл скачивается...");
+        if (iframe.parentNode) {
+          iframe.parentNode.removeChild(iframe);
+        }
+      }, 5000);
     } catch (error) {
       console.error("Download error:", error);
-      toast.error("Ошибка скачивания. Попробуйте ещё раз.");
+      toast.error("Ошибка скачивания");
     }
   };
 
