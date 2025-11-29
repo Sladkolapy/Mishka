@@ -26,8 +26,6 @@ from docx.shared import Pt, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from pptx import Presentation
 from pptx.util import Inches as PptxInches, Pt as PptxPt
-from pptx.dml.color import RgbColor
-from pptx.enum.text import PP_ALIGN
 import PyPDF2
 import xlrd
 import io
